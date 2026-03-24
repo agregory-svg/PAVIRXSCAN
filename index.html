@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RxScan — Pharmacy Receipt Processor</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0e1117;--surface:#161b27;--surface2:#1e2535;--border:#2a3348;--accent:#00e5a0;--accent2:#0099ff;--warn:#ffb020;--danger:#ff4d6d;--text:#e8edf5;--text-muted:#6b7a99;--text-dim:#3d4f6e;--mono:'DM Mono',monospace;--serif:'Fraunces',Georgia,serif}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;overflow-x:hidden}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:48px 48px;opacity:.3;pointer-events:none;z-index:0}
+  .container{position:relative;z-index:1;max-width:920px;margin:0 auto;padding:40px 24px 80px}
+  header{display:flex;align-items:flex-end;gap:16px;margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .logo-mark{width:48px;height:48px;background:var(--accent);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+  .logo-text h1{font-family:var(--serif);font-size:28px;font-weight:600;letter-spacing:-.5px}
+  .logo-text p{font-size:11px;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;margin-top:2px}
+  .hipaa-badge{margin-left:auto;background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);color:var(--danger);font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:6px 12px;border-radius:6px;font-weight:500}
+  .step{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;margin-bottom:20px;transition:border-color .2s;animation:fadeUp .4s ease both}
+  .step:nth-child(2){animation-delay:.05s}.step:nth-child(3){animation-delay:.1s}.step:nth-child(4){animation-delay:.15s}
+  .step-label{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;font-weight:500}
+  .step h2{font-family:var(--serif);font-size:18px;font-weight:300;margin-bottom:16px}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:11px;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase}
+  .field input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;transition:border-color .2s;width:100%}
+  .field input:focus{border-color:var(--accent)}
+  .field input::placeholder{color:var(--text-dim)}
+  .field-full{grid-column:1/-1}
+  .field-hint{font-size:11px;color:var(--text-muted);margin-top:4px;line-height:1.5}
+  .field-hint a,.field-hint span{color:var(--accent2);cursor:pointer;text-decoration:none}
+  .saved-badge{display:none;font-size:10px;color:var(--accent);margin-left:8px;letter-spacing:.06em}
+  .guide-box{display:none;margin-top:16px;background:var(--surface2);border-radius:10px;padding:16px;font-size:12px;line-height:1.9;color:var(--text-muted);border:1px solid var(--border)}
+  .guide-box strong{color:var(--text);display:block;margin-bottom:4px}
+  .guide-box a{color:var(--accent2);text-decoration:none}
+  .guide-box code{background:rgba(0,229,160,.1);color:var(--accent);padding:1px 5px;border-radius:3px;font-size:11px}
+  .upload-zone{border:2px dashed var(--border);border-radius:12px;padding:48px 24px;text-align:center;cursor:pointer;transition:all .2s;position:relative;background:var(--surface2)}
+  .upload-zone:hover,.upload-zone.drag-over{border-color:var(--accent);background:rgba(0,229,160,.04)}
+  .upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+  .upload-icon{font-size:40px;margin-bottom:12px;display:block}
+  .upload-zone h3{font-family:var(--serif);font-weight:300;font-size:18px;margin-bottom:6px}
+  .upload-zone p{font-size:12px;color:var(--text-muted)}
+  #preview-area{display:none;margin-top:16px;gap:12px;flex-wrap:wrap}
+  .preview-thumb{position:relative;width:100px;height:100px;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+  .preview-thumb img{width:100%;height:100%;object-fit:cover}
+  .preview-thumb .remove-btn{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.7);border:none;color:#fff;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center}
+  .process-btn{width:100%;background:var(--accent);color:#0e1117;border:none;border-radius:10px;padding:16px;font-family:var(--mono);font-size:14px;font-weight:500;letter-spacing:.05em;cursor:pointer;transition:all .2s;text-transform:uppercase}
+  .process-btn:hover:not(:disabled){background:#00ffc0;transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,229,160,.25)}
+  .process-btn:disabled{opacity:.4;cursor:not-allowed}
+  #progress-section{display:none}
+  .progress-log{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;font-size:12px;line-height:1.8;max-height:260px;overflow-y:auto}
+  .log-line{display:flex;gap:8px;align-items:flex-start}
+  .log-line .ts{color:var(--text-dim);flex-shrink:0}
+  .log-line.ok .msg{color:var(--accent)}.log-line.warn .msg{color:var(--warn)}.log-line.err .msg{color:var(--danger)}.log-line.info .msg{color:var(--text-muted)}
+  #results-section{display:none}
+  .results-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+  .result-count{background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.25);color:var(--accent);font-size:12px;padding:4px 10px;border-radius:20px}
+  .export-btn{background:var(--surface2);color:var(--accent2);border:1px solid rgba(0,153,255,.3);border-radius:8px;padding:8px 16px;font-family:var(--mono);font-size:12px;cursor:pointer;transition:all .2s}
+  .export-btn:hover{background:rgba(0,153,255,.1);border-color:var(--accent2)}
+  .table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border)}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  thead{background:var(--surface2)}
+  th{text-align:left;padding:12px 14px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap}
+  td{padding:11px 14px;border-bottom:1px solid rgba(42,51,72,.5);color:var(--text);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:rgba(255,255,255,.02)}
+  .phi-tag{background:rgba(255,77,109,.1);color:var(--danger);font-size:9px;padding:2px 6px;border-radius:4px;letter-spacing:.08em;text-transform:uppercase;display:inline-block;margin-left:4px;vertical-align:middle}
+  .redacted{color:var(--text-dim);font-style:italic}
+  .status-ok{color:var(--accent);font-size:10px;text-transform:uppercase}
+  .status-err{color:var(--danger);font-size:10px}
+  .drive-link{color:var(--accent2);text-decoration:none;font-size:11px;white-space:nowrap}
+  .drive-link:hover{text-decoration:underline}
+  .notice{background:rgba(255,176,32,.06);border:1px solid rgba(255,176,32,.2);border-radius:10px;padding:14px 16px;font-size:12px;color:var(--warn);line-height:1.6;margin-bottom:20px}
+  .notice strong{color:#ffd066}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(0,229,160,.3);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+  @media(max-width:600px){.field-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo-mark">💊</div>
+    <div class="logo-text"><h1>RxScan</h1><p>Pharmacy Receipt Processor</p></div>
+    <div class="hipaa-badge">⚠ PHI Sensitive</div>
+  </header>
+
+  <div class="notice">
+    <strong>Privacy Notice:</strong> Receipt images are sent to Claude (PHI identification) and your private Python backend (OCR + redaction). Redacted copies are stored in your Google Drive. Patient data is stored in your Google Sheet. All keys saved on this device only.
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="step">
+    <div class="step-label">Step 1 — Configuration</div>
+    <h2>API Keys & Backend URL</h2>
+
+    <div class="field-row">
+      <div class="field field-full">
+        <label>Anthropic API Key <span class="saved-badge" id="ak-badge">✓ saved</span></label>
+        <input type="password" id="anthropic-key" placeholder="sk-ant-api03-..." oninput="saveField('rxscan_ak',this.value,'ak-badge')" />
+        <div class="field-hint">Get yours at <a href="https://console.anthropic.com/keys" target="_blank">console.anthropic.com/keys</a> — saved automatically.</div>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field field-full">
+        <label>Backend URL <span class="saved-badge" id="url-badge">✓ saved</span></label>
+        <input type="text" id="backend-url" placeholder="https://rxscan-xxxx.onrender.com" oninput="saveField('rxscan_url',this.value,'url-badge')" />
+        <div class="field-hint"><span onclick="toggleGuide('setup-guide')">📖 Full backend setup guide — click to expand</span></div>
+      </div>
+    </div>
+
+    <div class="guide-box" id="setup-guide">
+      <strong>🚀 One-Time Backend Setup (~15 min total)</strong>
+
+      <strong style="color:var(--accent)">Part 1 — Google Service Account (5 min)</strong>
+      1. Go to <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a> → your project<br>
+      2. Enable these 3 APIs: <strong>Cloud Vision API</strong>, <strong>Google Drive API</strong>, <strong>Google Sheets API</strong><br>
+      3. Go to <strong>IAM & Admin → Service Accounts → Create Service Account</strong><br>
+      4. Name it <code>rxscan</code>, click Create, skip optional steps<br>
+      5. Click the new service account → <strong>Keys → Add Key → JSON</strong> → download the file<br>
+      6. Open the JSON file, copy ALL its contents<br>
+      7. Go to <a href="https://www.base64encode.org" target="_blank">base64encode.org</a>, paste the JSON, encode it → copy the result (this is your <code>GOOGLE_CREDS_B64</code>)<br>
+      8. Share your Google Sheet and Drive folder with the service account email (looks like <code>rxscan@your-project.iam.gserviceaccount.com</code>) — give it <strong>Editor</strong> access<br><br>
+
+      <strong style="color:var(--accent)">Part 2 — Deploy on Render (5 min)</strong>
+      1. Go to <a href="https://github.com" target="_blank">github.com</a> → create a <strong>new private repo</strong> called <code>rxscan-backend</code><br>
+      2. Upload <code>main.py</code> and <code>requirements.txt</code> to this repo<br>
+      3. Go to <a href="https://render.com" target="_blank">render.com</a> → sign up free → <strong>New → Web Service</strong><br>
+      4. Connect your GitHub account → select <code>rxscan-backend</code><br>
+      5. Settings:<br>
+         &nbsp;&nbsp;• Runtime: <strong>Python 3</strong><br>
+         &nbsp;&nbsp;• Build command: <code>pip install -r requirements.txt</code><br>
+         &nbsp;&nbsp;• Start command: <code>gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120</code><br>
+      6. Under <strong>Environment Variables</strong> add:<br>
+         &nbsp;&nbsp;• <code>SPREADSHEET_ID</code> = your Google Sheet ID<br>
+         &nbsp;&nbsp;• <code>GOOGLE_CREDS_B64</code> = the base64 string from step 7 above<br>
+         &nbsp;&nbsp;• <code>SHEET_NAME</code> = Sheet1 (or your tab name)<br>
+      7. Click <strong>Deploy</strong> — takes ~2 min. Copy the URL (e.g. <code>https://rxscan-xxxx.onrender.com</code>)<br>
+      8. Paste that URL above<br><br>
+
+      <span style="color:var(--warn)">⚠ Free Render tier sleeps after 15 min of inactivity. First request after sleep takes ~30 seconds to wake up. This is normal.</span>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="step">
+    <div class="step-label">Step 2 — Upload Receipts</div>
+    <h2>Select or photograph pharmacy receipts</h2>
+    <div class="upload-zone" id="upload-zone">
+      <input type="file" id="file-input" accept="image/*" capture="environment" multiple />
+      <span class="upload-icon">📷</span>
+      <h3>Tap to take a photo or choose from library</h3>
+      <p>JPG, PNG, HEIC, WEBP — multiple files supported</p>
+    </div>
+    <div id="preview-area" style="display:flex;"></div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="step">
+    <div class="step-label">Step 3 — Process</div>
+    <h2>Redact · Extract · Sync to Google</h2>
+    <button class="process-btn" id="process-btn" onclick="processReceipts()">⚡ Process Receipts</button>
+  </div>
+
+  <!-- Progress -->
+  <div class="step" id="progress-section">
+    <div class="step-label">Processing Log</div>
+    <div class="progress-log" id="progress-log"></div>
+  </div>
+
+  <!-- Results -->
+  <div class="step" id="results-section">
+    <div class="results-header">
+      <div><div class="step-label">Results</div><h2>Extracted Records</h2></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <span class="result-count" id="result-count">0 records</span>
+        <button class="export-btn" onclick="downloadCSV()">⬇ CSV</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Patient <span class="phi-tag">PHI</span></th><th>Pharmacy</th>
+            <th>Fill Date</th><th>Drug / Dose</th><th>Qty / Days</th>
+            <th>Copay</th><th>Sheets</th><th>Drive</th>
+          </tr>
+        </thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  let uploadedFiles = [], extractedResults = [];
+
+  // ── Persist fields ─────────────────────────────────────────
+  function saveField(key,val,badgeId){
+    if(val){localStorage.setItem(key,val);document.getElementById(badgeId).style.display='inline';}
+    else{localStorage.removeItem(key);document.getElementById(badgeId).style.display='none';}
+  }
+  document.addEventListener('DOMContentLoaded',()=>{
+    const ak  = localStorage.getItem('rxscan_ak');
+    const url = localStorage.getItem('rxscan_url');
+    if(ak) {document.getElementById('anthropic-key').value=ak; document.getElementById('ak-badge').style.display='inline';}
+    if(url){document.getElementById('backend-url').value=url;  document.getElementById('url-badge').style.display='inline';}
+  });
+
+  // ── File handling ──────────────────────────────────────────
+  const zone=document.getElementById('upload-zone');
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag-over')});
+  zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
+  zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag-over');handleFiles([...e.dataTransfer.files])});
+  document.getElementById('file-input').addEventListener('change',e=>handleFiles([...e.target.files]));
+
+  function handleFiles(files){
+    files.forEach(file=>{
+      if(!file.type.startsWith('image/'))return;
+      uploadedFiles.push(file);
+      const reader=new FileReader();
+      reader.onload=ev=>{
+        const area=document.getElementById('preview-area');
+        area.style.display='flex';
+        const idx=uploadedFiles.length-1;
+        const thumb=document.createElement('div');
+        thumb.className='preview-thumb';
+        thumb.innerHTML=`<img src="${ev.target.result}"><button class="remove-btn" onclick="removeFile(${idx},this.parentElement)">✕</button>`;
+        area.appendChild(thumb);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  function removeFile(idx,el){uploadedFiles.splice(idx,1);el.remove();}
+  function toggleGuide(id){const el=document.getElementById(id);el.style.display=el.style.display==='block'?'none':'block';}
+
+  // ── Logging ────────────────────────────────────────────────
+  function log(msg,type='info'){
+    const el=document.getElementById('progress-log');
+    const t=new Date().toLocaleTimeString('en-US',{hour12:false});
+    const d=document.createElement('div');
+    d.className=`log-line ${type}`;
+    d.innerHTML=`<span class="ts">${t}</span><span class="msg">${msg}</span>`;
+    el.appendChild(d);el.scrollTop=el.scrollHeight;
+  }
+
+  // ── Helpers ────────────────────────────────────────────────
+  function fileToBase64(file){
+    return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});
+  }
+
+  // ── Claude: identify PHI tokens from receipt image ─────────
+  async function identifyPHI(file, anthropicKey){
+    const b64       = await fileToBase64(file);
+    const mediaType = file.type || 'image/jpeg';
+
+    const system = `You are a HIPAA compliance specialist reviewing a pharmacy receipt. Extract prescription data and identify every PHI text token.
+
+Return ONLY valid JSON — no markdown:
+{
+  "patient_name": "full name as printed or null",
+  "pharmacy_name": "string or null",
+  "fill_date": "MM/DD/YYYY or null",
+  "drug_name": "string or null",
+  "dosage": "string or null",
+  "quantity": "string or null",
+  "days_supply": "string or null",
+  "copay": "$X.XX or null",
+  "insurance_paid": "$X.XX or null",
+  "phi_tokens": ["token1", "token2", ...]
+}
+
+phi_tokens rules — list EVERY individual word or token that is PHI:
+- Break names into individual words: "John Smith" → ["John", "Smith"]
+- Include last name alone since it may appear without first name
+- DOB: include full string AND year alone e.g. ["01/15/1980", "1980"]
+- Each address word separately: ["123", "Main", "Street", "Springfield"]
+- Phone digits: ["5551234567", "555", "4567"]
+- Rx numbers: ["4829471"] — just the digits
+- Insurance IDs: the full alphanumeric string
+- Include 3-char minimum tokens only
+- When uncertain — include it
+- DO NOT include: drug name, pharmacy name, fill date, copay, dosage, quantity`;
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':anthropicKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514', max_tokens:1500, system,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
+          {type:'text',text:'Extract all prescription fields and list every PHI token to redact from this receipt.'}
+        ]}]
+      })
+    });
+
+    if(!resp.ok){const e=await resp.json();throw new Error(e.error?.message||'Claude API error');}
+    const data=await resp.json();
+    const text=data.content.map(b=>b.text||'').join('');
+    return JSON.parse(text.replace(/```json|```/g,'').trim());
+  }
+
+  // ── MAIN ───────────────────────────────────────────────────
+  async function processReceipts(){
+    const anthropicKey = document.getElementById('anthropic-key').value.trim();
+    const backendUrl   = document.getElementById('backend-url').value.trim().replace(/\/$/, '');
+
+    if(!anthropicKey)         return alert('Please enter your Anthropic API key.');
+    if(!backendUrl)           return alert('Please enter your backend URL.');
+    if(!uploadedFiles.length) return alert('Please upload at least one receipt image.');
+
+    const btn=document.getElementById('process-btn');
+    btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Processing...';
+    document.getElementById('progress-section').style.display='block';
+    document.getElementById('results-section').style.display='none';
+    document.getElementById('progress-log').innerHTML='';
+    extractedResults=[];
+
+    // Test backend connection
+    try{
+      log('  → Connecting to backend...','info');
+      const ping = await fetch(backendUrl+'/', {method:'GET'});
+      if(!ping.ok) throw new Error('HTTP '+ping.status);
+      log('  ✓ Backend connected','ok');
+    }catch(e){
+      log(`  ✗ Cannot reach backend: ${e.message}`,'err');
+      log('  If you just deployed, wait 30s for it to wake up and try again','warn');
+      btn.disabled=false; btn.innerHTML='⚡ Process Receipts';
+      return;
+    }
+
+    log(`Starting — ${uploadedFiles.length} receipt(s) queued`);
+
+    for(let i=0;i<uploadedFiles.length;i++){
+      const file=uploadedFiles[i];
+      log(`[${i+1}/${uploadedFiles.length}] "${file.name}"`,'info');
+
+      let record=null, driveLink=null, sheetsOk=false, driveOk=false, sheetsErr='', driveErr='';
+
+      // A — Claude identifies PHI
+      try{
+        log('  → Claude: reading receipt and identifying PHI...','info');
+        record = await identifyPHI(file, anthropicKey);
+        const n = record.phi_tokens?.length || 0;
+        const preview = (record.phi_tokens||[]).slice(0,5).map(t=>`"${t}"`).join(', ');
+        log(`  ✓ Data extracted · ${n} PHI token(s): ${preview}${n>5?' …':''}`, 'ok');
+      }catch(e){
+        log(`  ✗ Claude error: ${e.message}`,'err');
+        extractedResults.push({file:file.name,record:{_error:e.message},sheetsOk,driveOk,driveLink,sheetsErr,driveErr});
+        continue;
+      }
+
+      // B — Send to Python backend: Vision OCR + Pillow redaction + Drive + Sheets
+      try{
+        log('  → Backend: OCR scanning, redacting, uploading...','info');
+        const b64 = await fileToBase64(file);
+        const ts  = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+        const fname = `REDACTED_${file.name.replace(/\.[^.]+$/,'')}_${ts}.jpg`;
+
+        const resp = await fetch(backendUrl+'/process', {
+          method:  'POST',
+          headers: {'Content-Type':'application/json'},
+          body:    JSON.stringify({
+            imageB64:  b64,
+            phiTokens: record.phi_tokens || [],
+            filename:  fname,
+            record:    record
+          })
+        });
+
+        const result = await resp.json();
+
+        if(!result.success){
+          throw new Error(result.error || 'Backend error');
+        }
+
+        driveLink = result.driveLink;
+        driveOk   = true;
+        sheetsOk  = true;
+        log(`  ✓ ${result.wordCount} words scanned · ${result.boxCount} PHI region(s) precisely redacted`,'ok');
+        log(`  ✓ Redacted image uploaded to Drive`,'ok');
+        log(`  ✓ Row added to Google Sheets`,'ok');
+
+      }catch(e){
+        driveErr  = e.message;
+        sheetsErr = e.message;
+        log(`  ✗ Backend error: ${e.message}`,'err');
+        if(e.message.includes('trace')){
+          log('  Check Render logs for full error details','warn');
+        }
+      }
+
+      extractedResults.push({file:file.name,record,sheetsOk,driveOk,driveLink,sheetsErr,driveErr});
+      log('  ─────────────────────────────','info');
+    }
+
+    const sent = extractedResults.filter(r=>r.sheetsOk).length;
+    log(`✓ Complete — ${sent}/${extractedResults.length} records processed`,'ok');
+    renderResults();
+    btn.disabled=false; btn.innerHTML='⚡ Process Receipts';
+  }
+
+  // ── Render table ───────────────────────────────────────────
+  function renderResults(){
+    document.getElementById('results-section').style.display='block';
+    const body=document.getElementById('results-body');
+    body.innerHTML='';
+    const valid=extractedResults.filter(r=>!r.record?._error);
+    document.getElementById('result-count').textContent=`${valid.length} record${valid.length!==1?'s':''}`;
+    extractedResults.forEach((item,i)=>{
+      const r=item.record||{},tr=document.createElement('tr');
+      if(r._error){
+        tr.innerHTML=`<td style="color:var(--text-dim)">${i+1}</td><td colspan="7" class="redacted">Error: ${r._error}</td><td class="status-err">✗</td>`;
+      }else{
+        const sc=item.sheetsOk?'<span class="status-ok">✓</span>':`<span class="status-err" title="${item.sheetsErr}">✗</span>`;
+        const dc=item.driveOk&&item.driveLink
+          ?`<a class="drive-link" href="${item.driveLink}" target="_blank">🔗 Open</a>`
+          :`<span class="status-err" title="${item.driveErr}">✗</span>`;
+        tr.innerHTML=`
+          <td style="color:var(--text-dim)">${i+1}</td>
+          <td>${r.patient_name||'<span class="redacted">—</span>'}<span class="phi-tag">PHI</span></td>
+          <td>${r.pharmacy_name||'<span class="redacted">—</span>'}</td>
+          <td>${r.fill_date||'<span class="redacted">—</span>'}</td>
+          <td>${[r.drug_name,r.dosage].filter(Boolean).join(' ')||'<span class="redacted">—</span>'}</td>
+          <td>${[r.quantity,r.days_supply?r.days_supply+'d':null].filter(Boolean).join(' / ')||'<span class="redacted">—</span>'}</td>
+          <td>${[r.copay,r.insurance_paid].filter(Boolean).join(' / ')||'<span class="redacted">—</span>'}</td>
+          <td>${sc}</td><td>${dc}</td>`;
+      }
+      body.appendChild(tr);
+    });
+  }
+
+  // ── CSV ────────────────────────────────────────────────────
+  function downloadCSV(){
+    const h=['Patient Name','Pharmacy','Fill Date','Drug','Dosage','Qty','Days','Copay','Ins. Paid','Drive Link'];
+    const rows=extractedResults.filter(r=>!r.record?._error).map(r=>{
+      const d=r.record;
+      return [d.patient_name,d.pharmacy_name,d.fill_date,d.drug_name,d.dosage,d.quantity,d.days_supply,d.copay,d.insurance_paid,r.driveLink||'']
+        .map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(',');
+    });
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([[h.join(','),...rows].join('\n')],{type:'text/csv'}));
+    a.download=`rx_receipts_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  }
+</script>
+</body>
+</html>
