@@ -96,7 +96,6 @@
   <div class="step">
     <div class="step-label">Step 1 — Configuration</div>
     <h2>API Keys & Apps Script URL</h2>
-
     <div class="field-row">
       <div class="field field-full">
         <label>Anthropic API Key</label>
@@ -104,7 +103,6 @@
         <div class="field-hint">Get yours at <a href="https://console.anthropic.com/keys" target="_blank">console.anthropic.com/keys</a></div>
       </div>
     </div>
-
     <div class="field-row">
       <div class="field field-full">
         <label>Google Apps Script URL</label>
@@ -112,16 +110,16 @@
         <div class="field-hint"><span onclick="toggleGuide('apps-guide')">📖 Setup guide — click to expand</span></div>
       </div>
     </div>
-
     <div class="guide-box" id="apps-guide">
       <strong>🚀 One-Time Apps Script Setup</strong>
       1. Go to <a href="https://script.google.com" target="_blank">script.google.com</a> → <strong>New project</strong><br>
       2. Delete all existing code, paste the full contents of <code>Code.gs</code><br>
-      3. On line 12, replace <code>PASTE_YOUR_SPREADSHEET_ID_HERE</code> with your Sheet ID<br>
-      4. Click <strong>Deploy → New deployment</strong><br>
+      3. On line 13, replace <code>PASTE_YOUR_SPREADSHEET_ID_HERE</code> with your Sheet ID<br>
+      4. In the function dropdown select <code>testDriveAccess</code> → click <strong>Run ▶</strong> → authorize Drive<br>
+      5. Click <strong>Deploy → New deployment</strong><br>
          &nbsp;&nbsp;Type: <strong>Web app</strong> · Execute as: <strong>Me</strong> · Access: <strong>Anyone</strong><br>
-      5. Authorize → copy the <strong>Web app URL</strong> and paste it above<br><br>
-      <span style="color:var(--warn)">⚠ Every time you edit Code.gs, click <strong>Deploy → New deployment</strong> for a fresh URL.</span>
+      6. Authorize → copy the <strong>Web app URL</strong> and paste above<br><br>
+      <span style="color:var(--warn)">⚠ Every time you edit Code.gs, use <strong>Deploy → New deployment</strong> for a new URL.</span>
     </div>
   </div>
 
@@ -203,55 +201,74 @@
     });
   }
   function removeFile(idx, el) { uploadedFiles.splice(idx, 1); el.remove(); }
-  function toggleGuide(id) { const el = document.getElementById(id); el.style.display = el.style.display === 'block' ? 'none' : 'block'; }
+  function toggleGuide(id) { const el=document.getElementById(id); el.style.display=el.style.display==='block'?'none':'block'; }
 
   // ── Logging ────────────────────────────────────────────────
   function log(msg, type='info') {
     const el = document.getElementById('progress-log');
-    const t  = new Date().toLocaleTimeString('en-US', {hour12:false});
+    const t  = new Date().toLocaleTimeString('en-US',{hour12:false});
     const d  = document.createElement('div');
     d.className = `log-line ${type}`;
     d.innerHTML = `<span class="ts">${t}</span><span class="msg">${msg}</span>`;
-    el.appendChild(d);
-    el.scrollTop = el.scrollHeight;
+    el.appendChild(d); el.scrollTop = el.scrollHeight;
   }
 
   // ── Helpers ────────────────────────────────────────────────
   function fileToBase64(file) {
-    return new Promise((res,rej) => { const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(file); });
+    return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file)});
   }
   function blobToBase64(blob) {
-    return new Promise((res,rej) => { const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(blob); });
+    return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)});
   }
-  function loadImage(file) {
-    return new Promise((res,rej) => { const img=new Image(); const url=URL.createObjectURL(file); img.onload=()=>{URL.revokeObjectURL(url);res(img)}; img.onerror=rej; img.src=url; });
+  function loadImage(src) {
+    return new Promise((res,rej)=>{
+      const img=new Image();
+      if (typeof src === 'string') { img.onload=()=>res(img); img.onerror=rej; img.src=src; }
+      else { const url=URL.createObjectURL(src); img.onload=()=>{URL.revokeObjectURL(url);res(img)}; img.onerror=rej; img.src=url; }
+    });
   }
 
-  // ── Resize image before sending (keeps URLs short) ────────
-  async function resizeImage(file, maxDim=1600) {
+  // ── Resize to max dimension, return blob ───────────────────
+  async function resizeToBlob(file, maxDim=1200, quality=0.82) {
     const img    = await loadImage(file);
     const canvas = document.createElement('canvas');
-    let w = img.naturalWidth, h = img.naturalHeight;
-    if (w > maxDim || h > maxDim) {
-      if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
-      else       { w = Math.round(w * maxDim / h); h = maxDim; }
+    let w=img.naturalWidth, h=img.naturalHeight;
+    if (w>maxDim||h>maxDim) {
+      if (w>h){h=Math.round(h*maxDim/w);w=maxDim;}
+      else    {w=Math.round(w*maxDim/h);h=maxDim;}
     }
-    canvas.width = w; canvas.height = h;
-    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-    return new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85));
+    canvas.width=w; canvas.height=h;
+    canvas.getContext('2d').drawImage(img,0,0,w,h);
+    return new Promise(res=>canvas.toBlob(res,'image/jpeg',quality));
   }
 
-  // ── Apps Script GET call ───────────────────────────────────
-  async function callScript(baseUrl, params) {
-    const url = baseUrl + '?' + Object.entries(params)
-      .map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-      .join('&');
-    const resp = await fetch(url, { method: 'GET', redirect: 'follow' });
+  // ── GET call to Apps Script ────────────────────────────────
+  async function scriptGET(baseUrl, params) {
+    const qs  = Object.entries(params).map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+    const url = baseUrl + '?' + qs;
+    const resp = await fetch(url, {method:'GET', redirect:'follow'});
     const text = await resp.text();
     let data;
-    try { data = JSON.parse(text); }
-    catch(e) { throw new Error('Bad response from Apps Script: ' + text.slice(0,200)); }
-    if (!data.success) throw new Error(data.error || 'Apps Script error');
+    try { data = JSON.parse(text); } catch(e) { throw new Error('Bad response: ' + text.slice(0,200)); }
+    if (!data.success) throw new Error(data.error || 'Script error');
+    return data;
+  }
+
+  // ── POST call to Apps Script (for image upload only) ───────
+  async function scriptPOST(baseUrl, payload) {
+    // Apps Script requires no Content-Type header on POST —
+    // setting it triggers a CORS preflight which Apps Script rejects.
+    // Sending as text/plain body bypasses the preflight entirely.
+    const resp = await fetch(baseUrl, {
+      method:  'POST',
+      redirect: 'follow',
+      body:    JSON.stringify(payload)
+      // deliberately NO Content-Type header
+    });
+    const text = await resp.text();
+    let data;
+    try { data = JSON.parse(text); } catch(e) { throw new Error('Bad response: ' + text.slice(0,200)); }
+    if (!data.success) throw new Error(data.error || 'Script error');
     return data;
   }
 
@@ -260,7 +277,7 @@
     const b64       = await fileToBase64(file);
     const mediaType = file.type || 'image/jpeg';
 
-    const system = `You are a pharmacy receipt data extractor. Return ONLY a valid JSON object, no markdown.
+    const system = `You are a pharmacy receipt data extractor. Return ONLY valid JSON, no markdown.
 
 {
   "patient_name": "string or null",
@@ -277,23 +294,17 @@
   ]
 }
 
-redaction_boxes: fractional coords (0–1) for ALL PHI regions visible:
-labels: patient_name, dob, address, member_id
-Be slightly generous with sizes.`;
+redaction_boxes: fractional coords (0–1) for ALL PHI visible.
+Labels: patient_name, dob, address, member_id. Be slightly generous with sizes.`;
 
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':anthropicKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514', max_tokens: 1500, system,
-        messages: [{ role:'user', content:[
-          { type:'image', source:{ type:'base64', media_type:mediaType, data:b64 } },
-          { type:'text',  text:'Extract all fields and PHI redaction boxes from this pharmacy receipt.' }
+        model:'claude-sonnet-4-20250514', max_tokens:1500, system,
+        messages:[{role:'user',content:[
+          {type:'image',source:{type:'base64',media_type:mediaType,data:b64}},
+          {type:'text', text:'Extract all fields and PHI redaction boxes from this pharmacy receipt.'}
         ]}]
       })
     });
@@ -303,23 +314,22 @@ Be slightly generous with sizes.`;
     return JSON.parse(text.replace(/```json|```/g,'').trim());
   }
 
-  // ── 2. Draw redaction bars ─────────────────────────────────
+  // ── 2. Draw redaction bars on canvas ──────────────────────
   async function createRedactedBlob(file, boxes) {
     const img    = await loadImage(file);
     const canvas = document.getElementById('redact-canvas');
-    canvas.width  = img.naturalWidth;
-    canvas.height = img.naturalHeight;
+    canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    ctx.fillStyle = '#000';
-    (boxes||[]).forEach(b => ctx.fillRect(b.x_pct*canvas.width, b.y_pct*canvas.height, b.w_pct*canvas.width, b.h_pct*canvas.height));
+    ctx.drawImage(img,0,0);
+    ctx.fillStyle='#000';
+    (boxes||[]).forEach(b=>ctx.fillRect(b.x_pct*canvas.width, b.y_pct*canvas.height, b.w_pct*canvas.width, b.h_pct*canvas.height));
     ctx.save();
     ctx.globalAlpha=.07; ctx.fillStyle='#c00';
-    ctx.font = `bold ${Math.floor(canvas.width*.09)}px sans-serif`;
-    ctx.translate(canvas.width/2, canvas.height/2); ctx.rotate(-.38); ctx.textAlign='center';
-    ctx.fillText('PHI REDACTED', 0, 0);
+    ctx.font=`bold ${Math.floor(canvas.width*.09)}px sans-serif`;
+    ctx.translate(canvas.width/2,canvas.height/2); ctx.rotate(-.38); ctx.textAlign='center';
+    ctx.fillText('PHI REDACTED',0,0);
     ctx.restore();
-    return new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.88));
+    return new Promise(res=>canvas.toBlob(res,'image/jpeg',0.88));
   }
 
   // ── MAIN ───────────────────────────────────────────────────
@@ -327,44 +337,44 @@ Be slightly generous with sizes.`;
     const anthropicKey  = document.getElementById('anthropic-key').value.trim();
     const appsScriptUrl = document.getElementById('apps-script-url').value.trim();
 
-    if (!anthropicKey)   return alert('Please enter your Anthropic API key.');
-    if (!appsScriptUrl)  return alert('Please enter your Apps Script URL.');
+    if (!anthropicKey)        return alert('Please enter your Anthropic API key.');
+    if (!appsScriptUrl)       return alert('Please enter your Apps Script URL.');
     if (!uploadedFiles.length) return alert('Please upload at least one receipt image.');
 
     const btn = document.getElementById('process-btn');
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Processing...';
-    document.getElementById('progress-section').style.display = 'block';
-    document.getElementById('results-section').style.display  = 'none';
-    document.getElementById('progress-log').innerHTML = '';
-    extractedResults = [];
+    btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Processing...';
+    document.getElementById('progress-section').style.display='block';
+    document.getElementById('results-section').style.display='none';
+    document.getElementById('progress-log').innerHTML='';
+    extractedResults=[];
 
     log(`Starting — ${uploadedFiles.length} receipt(s) queued`);
 
-    // Verify script is reachable
+    // Test connection
     try {
-      log('  → Testing Apps Script connection...', 'info');
-      await callScript(appsScriptUrl, { action: 'ensureHeaders' });
-      log('  ✓ Apps Script connected & sheet headers verified', 'ok');
+      log('  → Testing Apps Script connection...','info');
+      await scriptGET(appsScriptUrl, {action:'ensureHeaders'});
+      log('  ✓ Connected — sheet headers verified','ok');
     } catch(e) {
-      log(`  ✗ Apps Script unreachable: ${e.message}`, 'err');
-      log('  Check your URL and make sure it ends in /exec', 'warn');
-      btn.disabled = false; btn.innerHTML = '⚡ Process Receipts';
+      log(`  ✗ Cannot reach Apps Script: ${e.message}`,'err');
+      log('  Make sure the URL ends in /exec and access is set to Anyone','warn');
+      btn.disabled=false; btn.innerHTML='⚡ Process Receipts';
       return;
     }
 
-    for (let i = 0; i < uploadedFiles.length; i++) {
+    for (let i=0; i<uploadedFiles.length; i++) {
       const file = uploadedFiles[i];
-      log(`[${i+1}/${uploadedFiles.length}] "${file.name}"`, 'info');
+      log(`[${i+1}/${uploadedFiles.length}] "${file.name}"`,'info');
 
       let record=null, driveLink=null, sheetsOk=false, driveOk=false, sheetsErr='', driveErr='';
 
       // A — Claude
       try {
-        log('  → Analyzing receipt with Claude...', 'info');
+        log('  → Analyzing with Claude...','info');
         record = await extractFromReceipt(file, anthropicKey);
-        log(`  ✓ Extracted: ${record.drug_name||'?'} · ${record.redaction_boxes?.length||0} PHI zone(s) found`, 'ok');
+        log(`  ✓ Extracted: ${record.drug_name||'?'} · ${record.redaction_boxes?.length||0} PHI zone(s)`,'ok');
       } catch(e) {
-        log(`  ✗ Claude: ${e.message}`, 'err');
+        log(`  ✗ Claude: ${e.message}`,'err');
         extractedResults.push({file:file.name,record:{_error:e.message},sheetsOk,driveOk,driveLink,sheetsErr,driveErr});
         continue;
       }
@@ -372,74 +382,83 @@ Be slightly generous with sizes.`;
       // B — Redact
       let redactedBlob = null;
       try {
-        log('  → Drawing redaction bars on image...', 'info');
+        log('  → Drawing redaction bars...','info');
         redactedBlob = await createRedactedBlob(file, record.redaction_boxes||[]);
-        log(`  ✓ Redacted (${(redactedBlob.size/1024).toFixed(0)} KB)`, 'ok');
-      } catch(e) { log(`  ⚠ Redaction: ${e.message}`, 'warn'); }
+        log(`  ✓ Redacted (${(redactedBlob.size/1024).toFixed(0)} KB raw)`,'ok');
+      } catch(e) { log(`  ⚠ Redaction failed: ${e.message}`,'warn'); }
 
-      // C — Upload to Drive (resize first to keep payload manageable)
+      // C — Resize then POST image to Drive via Apps Script
       if (redactedBlob) {
         try {
-          log('  → Resizing & uploading to Google Drive...', 'info');
-          const resized  = await resizeImage(new File([redactedBlob], file.name, {type:'image/jpeg'}), 1400);
-          const b64      = await blobToBase64(resized);
+          log('  → Compressing image for upload...','info');
+          // Resize down aggressively so the base64 fits in the POST body
+          const smallBlob = await resizeToBlob(
+            new File([redactedBlob], file.name, {type:'image/jpeg'}),
+            1100, 0.78
+          );
+          const sizekb = (smallBlob.size/1024).toFixed(0);
+          log(`  → Uploading ${sizekb} KB to Google Drive...`,'info');
+
+          const b64       = await blobToBase64(smallBlob);
           const timestamp = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
-          const fname    = `REDACTED_${file.name.replace(/\.[^.]+$/,'')}_${timestamp}.jpg`;
-          const result   = await callScript(appsScriptUrl, {
-            action:    'uploadImage',
-            imageB64:  b64,
-            filename:  fname
+          const fname     = `REDACTED_${file.name.replace(/\.[^.]+$/,'')}_${timestamp}.jpg`;
+
+          const result = await scriptPOST(appsScriptUrl, {
+            action:   'uploadImage',
+            imageB64: b64,
+            filename: fname
           });
+
           driveLink = result.driveLink;
           driveOk   = true;
-          log('  ✓ Uploaded to Drive', 'ok');
+          log('  ✓ Uploaded to Drive','ok');
         } catch(e) {
           driveErr = e.message;
-          log(`  ✗ Drive: ${e.message}`, 'err');
+          log(`  ✗ Drive upload failed: ${e.message}`,'err');
         }
       }
 
-      // D — Sheets
+      // D — Append row to Sheets
       try {
-        log('  → Writing row to Google Sheets...', 'info');
-        await callScript(appsScriptUrl, {
+        log('  → Writing to Google Sheets...','info');
+        await scriptGET(appsScriptUrl, {
           action:    'appendRow',
           record:    JSON.stringify(record),
           driveLink: driveLink || ''
         });
         sheetsOk = true;
-        log('  ✓ Row added to Sheets', 'ok');
+        log('  ✓ Row added to Sheets','ok');
       } catch(e) {
         sheetsErr = e.message;
-        log(`  ✗ Sheets: ${e.message}`, 'err');
+        log(`  ✗ Sheets: ${e.message}`,'err');
       }
 
       extractedResults.push({file:file.name,record,sheetsOk,driveOk,driveLink,sheetsErr,driveErr});
     }
 
     const sent = extractedResults.filter(r=>r.sheetsOk).length;
-    log(`✓ Done — ${sent}/${extractedResults.length} records synced`, 'ok');
+    log(`✓ Done — ${sent}/${extractedResults.length} records synced`,'ok');
     renderResults();
-    btn.disabled = false; btn.innerHTML = '⚡ Process Receipts';
+    btn.disabled=false; btn.innerHTML='⚡ Process Receipts';
   }
 
   // ── Render table ───────────────────────────────────────────
   function renderResults() {
-    document.getElementById('results-section').style.display = 'block';
+    document.getElementById('results-section').style.display='block';
     const body = document.getElementById('results-body');
-    body.innerHTML = '';
+    body.innerHTML='';
     const valid = extractedResults.filter(r=>!r.record?._error);
-    document.getElementById('result-count').textContent = `${valid.length} record${valid.length!==1?'s':''}`;
+    document.getElementById('result-count').textContent=`${valid.length} record${valid.length!==1?'s':''}`;
 
-    extractedResults.forEach((item,i) => {
+    extractedResults.forEach((item,i)=>{
       const r=item.record||{}, tr=document.createElement('tr');
       if (r._error) {
         tr.innerHTML=`<td style="color:var(--text-dim)">${i+1}</td><td colspan="7" class="redacted">Error: ${r._error}</td><td class="status-err">✗</td>`;
       } else {
-        const sc = item.sheetsOk ? '<span class="status-ok">✓</span>' : `<span class="status-err">✗</span>`;
-        const dc = item.driveOk && item.driveLink
+        const sc = item.sheetsOk?'<span class="status-ok">✓</span>':`<span class="status-err" title="${item.sheetsErr}">✗</span>`;
+        const dc = item.driveOk&&item.driveLink
           ? `<a class="drive-link" href="${item.driveLink}" target="_blank">🔗 Open</a>`
-          : `<span class="status-err">✗</span>`;
+          : `<span class="status-err" title="${item.driveErr}">✗</span>`;
         tr.innerHTML=`
           <td style="color:var(--text-dim)">${i+1}</td>
           <td>${r.patient_name||'<span class="redacted">—</span>'}<span class="phi-tag">PHI</span></td>
@@ -456,15 +475,15 @@ Be slightly generous with sizes.`;
 
   // ── CSV ────────────────────────────────────────────────────
   function downloadCSV() {
-    const h = ['Patient Name','Pharmacy','Fill Date','Drug','Dosage','Qty','Days','Copay','Ins. Paid','Drive Link'];
-    const rows = extractedResults.filter(r=>!r.record?._error).map(r => {
+    const h=['Patient Name','Pharmacy','Fill Date','Drug','Dosage','Qty','Days','Copay','Ins. Paid','Drive Link'];
+    const rows=extractedResults.filter(r=>!r.record?._error).map(r=>{
       const d=r.record;
       return [d.patient_name,d.pharmacy_name,d.fill_date,d.drug_name,d.dosage,d.quantity,d.days_supply,d.copay,d.insurance_paid,r.driveLink||'']
         .map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(',');
     });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([[h.join(','),...rows].join('\n')],{type:'text/csv'}));
-    a.download = `rx_receipts_${new Date().toISOString().slice(0,10)}.csv`;
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([[h.join(','),...rows].join('\n')],{type:'text/csv'}));
+    a.download=`rx_receipts_${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
   }
 </script>
