@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RxScan</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0e1117;--surface:#161b27;--surface2:#1e2535;--border:#2a3348;--accent:#00e5a0;--accent2:#0099ff;--warn:#ffb020;--danger:#ff4d6d;--text:#e8edf5;--text-muted:#6b7a99;--text-dim:#3d4f6e;--mono:'DM Mono',monospace;--serif:'Fraunces',Georgia,serif}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);min-height:100vh;overflow-x:hidden}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:48px 48px;opacity:.3;pointer-events:none;z-index:0}
+  .wrap{position:relative;z-index:1;max-width:920px;margin:0 auto;padding:32px 20px 80px}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:40px;padding-bottom:28px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+  .logo{width:44px;height:44px;background:var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+  .logo-text h1{font-family:var(--serif);font-size:26px;font-weight:600;letter-spacing:-.5px}
+  .logo-text p{font-size:11px;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase}
+  .badge{margin-left:auto;background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);color:var(--danger);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:5px 10px;border-radius:6px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:16px;animation:up .4s ease both}
+  .card:nth-child(2){animation-delay:.05s}.card:nth-child(3){animation-delay:.1s}.card:nth-child(4){animation-delay:.15s}
+  .lbl{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--accent);margin-bottom:6px;font-weight:500}
+  .card h2{font-family:var(--serif);font-size:17px;font-weight:300;margin-bottom:14px}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+  .field label{font-size:11px;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase}
+  .field input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 13px;color:var(--text);font-family:var(--mono);font-size:13px;outline:none;transition:border-color .2s;width:100%}
+  .field input:focus{border-color:var(--accent)}
+  .field input::placeholder{color:var(--text-dim)}
+  .hint{font-size:11px;color:var(--text-muted);margin-top:3px;line-height:1.5}
+  .hint a,.hint span{color:var(--accent2);cursor:pointer;text-decoration:none}
+  .sbadge{display:none;font-size:10px;color:var(--accent);margin-left:6px}
+  .guide{display:none;margin-top:12px;background:var(--surface2);border-radius:8px;padding:14px;font-size:12px;line-height:1.9;color:var(--text-muted);border:1px solid var(--border)}
+  .guide b{color:var(--text);display:block;margin-bottom:3px}
+  .guide a{color:var(--accent2);text-decoration:none}
+  .guide code{background:rgba(0,229,160,.1);color:var(--accent);padding:1px 4px;border-radius:3px;font-size:11px}
+  /* Upload buttons */
+  .upload-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+  .upload-btn{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:20px 10px;color:var(--text);font-family:var(--mono);font-size:13px;cursor:pointer;transition:border-color .2s;text-align:center;line-height:1}
+  .upload-btn:hover{border-color:var(--accent)}
+  .upload-btn span{display:block;font-size:10px;color:var(--text-muted);margin-top:6px;letter-spacing:.04em}
+  #previews{display:none;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .thumb{position:relative;width:90px;height:90px;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+  .thumb img{width:100%;height:100%;object-fit:cover}
+  .thumb button{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.75);border:none;color:#fff;border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;line-height:1}
+  /* Process btn */
+  .go-btn{width:100%;background:var(--accent);color:#0e1117;border:none;border-radius:10px;padding:15px;font-family:var(--mono);font-size:14px;font-weight:500;letter-spacing:.05em;cursor:pointer;transition:all .2s;text-transform:uppercase}
+  .go-btn:hover:not(:disabled){background:#00ffc0;transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,229,160,.25)}
+  .go-btn:disabled{opacity:.4;cursor:not-allowed}
+  /* Log */
+  #log-card{display:none}
+  .log{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;line-height:1.8;max-height:240px;overflow-y:auto}
+  .ll{display:flex;gap:8px}.ll .t{color:var(--text-dim);flex-shrink:0}
+  .ll.ok .m{color:var(--accent)}.ll.warn .m{color:var(--warn)}.ll.err .m{color:var(--danger)}.ll.info .m{color:var(--text-muted)}
+  /* Results */
+  #res-card{display:none}
+  .res-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:10px;flex-wrap:wrap}
+  .cnt{background:rgba(0,229,160,.1);border:1px solid rgba(0,229,160,.25);color:var(--accent);font-size:12px;padding:3px 9px;border-radius:20px}
+  .csv-btn{background:var(--surface2);color:var(--accent2);border:1px solid rgba(0,153,255,.3);border-radius:8px;padding:7px 14px;font-family:var(--mono);font-size:12px;cursor:pointer}
+  .tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border)}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  thead{background:var(--surface2)}
+  th{text-align:left;padding:10px 12px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border);white-space:nowrap}
+  td{padding:10px 12px;border-bottom:1px solid rgba(42,51,72,.5);color:var(--text);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  .phi{background:rgba(255,77,109,.1);color:var(--danger);font-size:9px;padding:1px 5px;border-radius:3px;letter-spacing:.08em;text-transform:uppercase;display:inline-block;margin-left:3px}
+  .dim{color:var(--text-dim);font-style:italic}
+  .ok-tag{color:var(--accent);font-size:10px;text-transform:uppercase}
+  .err-tag{color:var(--danger);font-size:10px}
+  .dlink{color:var(--accent2);text-decoration:none;font-size:11px}
+  .notice{background:rgba(255,176,32,.06);border:1px solid rgba(255,176,32,.2);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--warn);line-height:1.6;margin-bottom:16px}
+  .notice b{color:#ffd066}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(0,229,160,.3);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:5px}
+  @keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  @media(max-width:500px){.upload-btns{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<!-- Hidden file inputs — SEPARATE inputs for camera vs library fixes mobile bug -->
+<input type="file" id="inp-camera"  accept="image/*" capture="environment" style="display:none">
+<input type="file" id="inp-library" accept="image/*" multiple style="display:none">
+
+<div class="wrap">
+  <header>
+    <div class="logo">💊</div>
+    <div class="logo-text"><h1>RxScan</h1><p>Pharmacy Receipt Processor</p></div>
+    <div class="badge">⚠ PHI</div>
+  </header>
+
+  <div class="notice"><b>Privacy:</b> Images go to Claude (PHI detection) and your private backend (OCR + redaction). Redacted copies stored in your Google Drive. Data in your Google Sheet. Keys saved on this device.</div>
+
+  <!-- Config -->
+  <div class="card">
+    <div class="lbl">Step 1 — Configuration</div>
+    <h2>API Keys & Backend URL</h2>
+
+    <div class="field">
+      <label>Anthropic API Key <span class="sbadge" id="ak-saved">✓ saved</span></label>
+      <input type="password" id="ak" placeholder="sk-ant-api03-..." oninput="save('rxscan_ak',this.value,'ak-saved')">
+      <div class="hint">Get yours at <a href="https://console.anthropic.com/keys" target="_blank">console.anthropic.com/keys</a> — saved automatically, enter once.</div>
+    </div>
+
+    <div class="field">
+      <label>Backend URL <span class="sbadge" id="url-saved">✓ saved</span></label>
+      <input type="text" id="burl" placeholder="https://rxscan-xxxx.onrender.com" oninput="save('rxscan_url',this.value,'url-saved')">
+      <div class="hint"><span onclick="tog('guide')">📖 Setup guide — tap to expand</span></div>
+    </div>
+
+    <div class="guide" id="guide">
+      <b>Part 1 — Google Service Account</b>
+      1. <a href="https://console.cloud.google.com" target="_blank">console.cloud.google.com</a> → your project<br>
+      2. Enable: <b>Cloud Vision API</b>, <b>Google Drive API</b>, <b>Google Sheets API</b><br>
+      3. IAM & Admin → Service Accounts → Create → name it <code>rxscan</code> → role: Editor<br>
+      4. Click the account → Keys → Add Key → JSON → download<br>
+      5. Open JSON in text editor → copy all → go to <a href="https://www.base64encode.org" target="_blank">base64encode.org</a> → encode → copy result<br>
+      6. Share your Google Sheet with the service account email → Editor<br><br>
+      <b>Part 2 — Render Deployment</b>
+      1. Create a <b>private</b> GitHub repo called <code>rxscan-backend</code><br>
+      2. Upload <code>main.py</code> and <code>requirements.txt</code><br>
+      3. <a href="https://render.com" target="_blank">render.com</a> → New → Web Service → connect repo<br>
+      4. Runtime: Python 3 · Build: <code>pip install -r requirements.txt</code><br>
+      5. Start: <code>gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120</code><br>
+      6. Environment variables: <code>SPREADSHEET_ID</code>, <code>GOOGLE_CREDS_B64</code>, <code>SHEET_NAME</code>=Sheet1<br>
+      7. Deploy → copy URL → paste above<br><br>
+      <span style="color:var(--warn)">⚠ Free Render sleeps after 15 min. First use takes ~30-60s to wake. The app handles this automatically.</span>
+    </div>
+  </div>
+
+  <!-- Upload -->
+  <div class="card">
+    <div class="lbl">Step 2 — Add Receipts</div>
+    <h2>Take a photo or choose from library</h2>
+    <div class="upload-btns">
+      <button class="upload-btn" onclick="document.getElementById('inp-camera').click()">
+        📷<span>Take Photo</span>
+      </button>
+      <button class="upload-btn" onclick="document.getElementById('inp-library').click()">
+        🖼️<span>Choose from Library</span>
+      </button>
+    </div>
+    <div id="previews"></div>
+  </div>
+
+  <!-- Process -->
+  <div class="card">
+    <div class="lbl">Step 3 — Process</div>
+    <h2>Redact · Extract · Sync to Google</h2>
+    <button class="go-btn" id="go-btn" onclick="run()">⚡ Process Receipts</button>
+  </div>
+
+  <!-- Log -->
+  <div class="card" id="log-card">
+    <div class="lbl">Processing Log</div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <!-- Results -->
+  <div class="card" id="res-card">
+    <div class="res-hdr">
+      <div><div class="lbl">Results</div><h2>Extracted Records</h2></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="cnt" id="cnt">0 records</span>
+        <button class="csv-btn" onclick="csv()">⬇ CSV</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>Patient <span class="phi">PHI</span></th><th>Pharmacy</th>
+          <th>Fill Date</th><th>Drug / Dose</th><th>Qty / Days</th>
+          <th>Copay</th><th>Sheets</th><th>Drive</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  let files = [], results = [];
+
+  // ── Restore saved keys on load ─────────────────────────────
+  // Use window.onload not DOMContentLoaded to ensure localStorage
+  // is available (some mobile browsers delay it)
+  window.onload = function() {
+    try {
+      const ak  = localStorage.getItem('rxscan_ak');
+      const url = localStorage.getItem('rxscan_url');
+      if(ak)  { document.getElementById('ak').value   = ak;  document.getElementById('ak-saved').style.display  = 'inline'; }
+      if(url) { document.getElementById('burl').value = url; document.getElementById('url-saved').style.display = 'inline'; }
+    } catch(e) { console.log('localStorage unavailable', e); }
+  };
+
+  function save(key, val, badgeId) {
+    try {
+      if(val) { localStorage.setItem(key, val);    document.getElementById(badgeId).style.display = 'inline'; }
+      else    { localStorage.removeItem(key);       document.getElementById(badgeId).style.display = 'none'; }
+    } catch(e) {}
+  }
+
+  function tog(id) {
+    const el = document.getElementById(id);
+    el.style.display = el.style.display === 'block' ? 'none' : 'block';
+  }
+
+  // ── File inputs — separate camera and library ──────────────
+  // Using separate inputs (no capture+multiple combo) fixes the
+  // iOS/Chrome bug where "Use Photo" silently does nothing
+  document.getElementById('inp-camera').addEventListener('change', function(e) {
+    addFiles([...e.target.files]);
+    e.target.value = ''; // reset so same photo can be retaken
+  });
+  document.getElementById('inp-library').addEventListener('change', function(e) {
+    addFiles([...e.target.files]);
+    e.target.value = '';
+  });
+
+  function addFiles(newFiles) {
+    newFiles.forEach(file => {
+      if(!file.type.startsWith('image/')) return;
+      files.push(file);
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const area = document.getElementById('previews');
+        area.style.display = 'flex';
+        const idx = files.length - 1;
+        const d   = document.createElement('div');
+        d.className = 'thumb';
+        d.innerHTML = `<img src="${ev.target.result}"><button onclick="removeFile(${idx},this.parentElement)">✕</button>`;
+        area.appendChild(d);
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function removeFile(idx, el) { files.splice(idx, 1); el.remove(); }
+
+  // ── Logging ────────────────────────────────────────────────
+  function log(msg, type='info') {
+    const el = document.getElementById('log');
+    const t  = new Date().toLocaleTimeString('en-US', {hour12:false});
+    const d  = document.createElement('div');
+    d.className = `ll ${type}`;
+    d.innerHTML = `<span class="t">${t}</span><span class="m">${msg}</span>`;
+    el.appendChild(d);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function fileToBase64(file) {
+    return new Promise((res,rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(',')[1]);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+  }
+
+  // ── Claude: identify PHI tokens ───────────────────────────
+  async function identifyPHI(file, ak) {
+    const b64       = await fileToBase64(file);
+    const mediaType = file.type || 'image/jpeg';
+
+    const system = `You are a HIPAA compliance specialist reviewing a pharmacy receipt. Extract prescription data and identify every PHI text token.
+
+Return ONLY valid JSON — no markdown:
+{
+  "patient_name": "full name as printed or null",
+  "pharmacy_name": "string or null",
+  "fill_date": "MM/DD/YYYY or null",
+  "drug_name": "string or null",
+  "dosage": "string or null",
+  "quantity": "string or null",
+  "days_supply": "string or null",
+  "copay": "$X.XX or null",
+  "insurance_paid": "$X.XX or null",
+  "phi_tokens": ["token1", "token2"]
+}
+
+phi_tokens: every individual word/token that is PHI and must be blacked out.
+- Name "John Smith" → ["John", "Smith", "JOHN", "SMITH"] include all caps variants
+- DOB → ["01/15/1980", "01", "15", "1980"]
+- Each address word → ["123", "Main", "Street", "Springfield", "IL", "62701"]
+- Phone → ["555-123-4567", "555", "4567"]
+- Rx number digits only → ["4829471"]
+- Insurance ID → full string
+- 3+ char tokens only
+- When uncertain — include it
+- DO NOT include: drug name, pharmacy name, fill date, prices, dosage, quantity`;
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ak,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system,
+        messages: [{role:'user', content:[
+          {type:'image', source:{type:'base64', media_type:mediaType, data:b64}},
+          {type:'text',  text:'Extract all fields and list every PHI token to redact.'}
+        ]}]
+      })
+    });
+
+    if(!resp.ok) { const e = await resp.json(); throw new Error(e.error?.message || 'Claude error'); }
+    const data = await resp.json();
+    const text = data.content.map(b => b.text || '').join('');
+    return JSON.parse(text.replace(/```json|```/g,'').trim());
+  }
+
+  // ── Wake Render backend with retry ────────────────────────
+  async function wakeBackend(url) {
+    for(let i = 1; i <= 12; i++) {
+      try {
+        const ctrl = new AbortController();
+        const tid  = setTimeout(() => ctrl.abort(), 10000);
+        const resp = await fetch(url + '/', { method:'GET', signal:ctrl.signal });
+        clearTimeout(tid);
+        if(resp.ok) return true;
+      } catch(e) {
+        if(i < 12) {
+          log(`  → Still waking up... (${i}/12)`, 'info');
+          await new Promise(r => setTimeout(r, 5000));
+        }
+      }
+    }
+    return false;
+  }
+
+  // ── Main ──────────────────────────────────────────────────
+  async function run() {
+    const ak   = document.getElementById('ak').value.trim();
+    const burl = document.getElementById('burl').value.trim().replace(/\/$/, '');
+
+    if(!ak)            return alert('Please enter your Anthropic API key.');
+    if(!burl)          return alert('Please enter your backend URL.');
+    if(!files.length)  return alert('Please add at least one receipt image.');
+
+    const btn = document.getElementById('go-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>Processing...';
+    document.getElementById('log-card').style.display = 'block';
+    document.getElementById('res-card').style.display = 'none';
+    document.getElementById('log').innerHTML = '';
+    results = [];
+
+    // Wake backend
+    log('→ Waking backend (up to 60s if sleeping)...', 'info');
+    const alive = await wakeBackend(burl);
+    if(!alive) {
+      log('✗ Backend did not respond. Check Render dashboard logs.', 'err');
+      btn.disabled = false;
+      btn.innerHTML = '⚡ Process Receipts';
+      return;
+    }
+    log('✓ Backend ready', 'ok');
+    log(`Starting — ${files.length} receipt(s)`);
+
+    for(let i = 0; i < files.length; i++) {
+      const file = files[i];
+      log(`[${i+1}/${files.length}] "${file.name}"`, 'info');
+
+      let record = null, driveLink = null, ok = false, err = '';
+
+      // Claude
+      try {
+        log('  → Claude: identifying PHI...', 'info');
+        record = await identifyPHI(file, ak);
+        const n = record.phi_tokens?.length || 0;
+        log(`  ✓ ${n} PHI token(s) identified`, 'ok');
+      } catch(e) {
+        log(`  ✗ Claude: ${e.message}`, 'err');
+        results.push({file:file.name, record:{_error:e.message}, ok:false, driveLink:null, err:e.message});
+        continue;
+      }
+
+      // Backend: Vision + Pillow redaction + Drive + Sheets
+      try {
+        log('  → Backend: OCR → redact → upload...', 'info');
+        const b64  = await fileToBase64(file);
+        const ts   = new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+        const name = `REDACTED_${file.name.replace(/\.[^.]+$/,'')}_${ts}.jpg`;
+
+        const ctrl = new AbortController();
+        const tid  = setTimeout(() => ctrl.abort(), 110000);
+
+        const resp = await fetch(burl + '/process', {
+          method:  'POST',
+          headers: {'Content-Type':'application/json'},
+          signal:  ctrl.signal,
+          body: JSON.stringify({
+            imageB64:  b64,
+            phiTokens: record.phi_tokens || [],
+            filename:  name,
+            record:    record
+          })
+        });
+        clearTimeout(tid);
+
+        const res = await resp.json();
+        if(!res.success) throw new Error(res.error || 'Backend error');
+
+        driveLink = res.driveLink;
+        ok = true;
+        log(`  ✓ ${res.wordCount} words scanned · ${res.boxCount} PHI region(s) redacted`, 'ok');
+        log(`  ✓ Uploaded to Drive · Row added to Sheets`, 'ok');
+
+      } catch(e) {
+        err = e.message;
+        log(`  ✗ Backend: ${e.message}`, 'err');
+      }
+
+      results.push({file:file.name, record, ok, driveLink, err});
+      log('  ────────────────────────────', 'info');
+    }
+
+    log(`✓ Done — ${results.filter(r=>r.ok).length}/${results.length} processed`, 'ok');
+    render();
+    btn.disabled = false;
+    btn.innerHTML = '⚡ Process Receipts';
+  }
+
+  function render() {
+    document.getElementById('res-card').style.display = 'block';
+    const tbody = document.getElementById('tbody');
+    tbody.innerHTML = '';
+    const valid = results.filter(r => !r.record?._error);
+    document.getElementById('cnt').textContent = `${valid.length} record${valid.length!==1?'s':''}`;
+
+    results.forEach((item, i) => {
+      const r = item.record || {}, tr = document.createElement('tr');
+      if(r._error) {
+        tr.innerHTML = `<td style="color:var(--text-dim)">${i+1}</td><td colspan="7" class="dim">Error: ${r._error}</td><td class="err-tag">✗</td>`;
+      } else {
+        const sc = item.ok ? '<span class="ok-tag">✓</span>' : `<span class="err-tag" title="${item.err}">✗</span>`;
+        const dc = item.ok && item.driveLink
+          ? `<a class="dlink" href="${item.driveLink}" target="_blank">🔗 Open</a>`
+          : `<span class="err-tag" title="${item.err}">✗</span>`;
+        tr.innerHTML = `
+          <td style="color:var(--text-dim)">${i+1}</td>
+          <td>${r.patient_name||'<span class="dim">—</span>'}<span class="phi">PHI</span></td>
+          <td>${r.pharmacy_name||'<span class="dim">—</span>'}</td>
+          <td>${r.fill_date||'<span class="dim">—</span>'}</td>
+          <td>${[r.drug_name,r.dosage].filter(Boolean).join(' ')||'<span class="dim">—</span>'}</td>
+          <td>${[r.quantity,r.days_supply?r.days_supply+'d':null].filter(Boolean).join(' / ')||'<span class="dim">—</span>'}</td>
+          <td>${[r.copay,r.insurance_paid].filter(Boolean).join(' / ')||'<span class="dim">—</span>'}</td>
+          <td>${sc}</td><td>${dc}</td>`;
+      }
+      tbody.appendChild(tr);
+    });
+  }
+
+  function csv() {
+    const h = ['Patient Name','Pharmacy','Fill Date','Drug','Dosage','Qty','Days','Copay','Ins','Drive Link'];
+    const rows = results.filter(r=>!r.record?._error).map(r => {
+      const d = r.record;
+      return [d.patient_name,d.pharmacy_name,d.fill_date,d.drug_name,d.dosage,d.quantity,d.days_supply,d.copay,d.insurance_paid,r.driveLink||'']
+        .map(v=>`"${(v||'').replace(/"/g,'""')}"`).join(',');
+    });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([[h.join(','),...rows].join('\n')], {type:'text/csv'}));
+    a.download = `rx_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  }
+</script>
+</body>
+</html>
